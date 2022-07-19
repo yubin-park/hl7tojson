@@ -23,8 +23,10 @@ with open('{}/data/{}/segments.pickle'.format(FILE_PATH, HL7_VERSION), "rb") as 
 
 def parse(message):
     sequence = parse_hl7_message(message)
-    if not validate_segments(sequence):
-        raise Exception('The message is invalid')
+   
+    # NOTE: This requirement can be too strict. Disabling this - YP
+    #if not validate_segments(sequence):
+    #    raise Exception('The message is invalid')
 
     sequence_with_description = update_description(0, sequence)
     data = hl7_message_to_dict(sequence_with_description)
@@ -64,24 +66,29 @@ def update_description(idx, sequence, **kwargs):
         sequence.name = messages[message_type]['name']
     elif isinstance(sequence, hl7.Segment):
         segment_type = str(sequence[0])
-        sequence.desc = segments[segment_type]['desc']
+        sequence.desc = segments.get(segment_type, {}).get('desc', "")
     elif isinstance(sequence, hl7.Field):
         if idx == 0:
             return
         segment_type = str(kwargs['parent'][0])
-        sequence.desc = segments[segment_type]['fields'][idx - 1]['desc']
-        sequence.datatype = segments[segment_type]['fields'][idx - 1]['datatype']
+        description = ""
+        datatype = ""
+        if "fields" in segments.get(segment_type, {}):
+            description = segments[segment_type]['fields'][idx - 1]['desc']
+            datatype = segments[segment_type]['fields'][idx - 1]['datatype']
+        sequence.desc = description
+        sequence.datatype = datatype
     elif isinstance(sequence, hl7.Repetition):
         field = kwargs['parent']
         sequence.desc = field.desc
         sequence.datatype = field.datatype
     elif isinstance(sequence, hl7.Component):
         field = kwargs['parent']
-        if fields[field.datatype]['subfields']:
+        if fields.get(field.datatype, {}).get('subfields', False):
             description = fields[field.datatype]['subfields'][idx]['desc']
             datatype = fields[field.datatype]['subfields'][idx]['datatype']
         else:
-            description = fields[field.datatype]['desc']
+            description = fields.get(field.datatype, {}).get('desc', "")
             datatype = field.datatype
         sequence.desc = description
         sequence.datatype = datatype
